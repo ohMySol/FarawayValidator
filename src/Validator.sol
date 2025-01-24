@@ -4,7 +4,8 @@ pragma solidity 0.8.28;
 /**
  * @title Validator Contract
  * @author Anton
- * @notice This contract allows validators to stake their licenses(ERC-721) and earn tokens(ERC-20) in return.
+ * @notice This contract allows validators to stake their licenses(ERC-721) and earn tokens(ERC-20) in return
+ * when a certain epoch is elapsed.
  */
 contract Validator {
     /**
