@@ -1,6 +1,17 @@
 [profile.default]
 src = "src"
 out = "out"
+test = 'test'
 libs = ["lib"]
+gas_reports = []
+cbor_metadata = true
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+ignored_warnings_from = []
+
+[etherscan]
+
+[profile.remappings]
+remappings = [
+    'openzeppelin/=lib/openzeppelin-contracts/',
+    'forge-std/=lib/forge-std/src'
+]
