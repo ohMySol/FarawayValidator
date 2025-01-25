@@ -17,6 +17,17 @@ interface IValidatorErrors {
      * @dev Error indicates that token owner didn't approve contract for staking the license.
      */
     error Validator_ContractNotApprovedToStakeLicense();
+
+    /**
+     * @dev Error indicates that validator is trying to unlock license, when at least 1 epoch
+     * didn't passed yet.
+     */
+    error Validator_EpochDidNotPassedYet();
+
+     /**
+     * @dev Error indicates that address(0) is participating in rewards calculations.
+     */
+    error Validator_ValidatorCanNotBeAddressZero();
 }
 
 // Custom errors for HelperConfig.s.sol
