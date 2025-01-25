@@ -2,8 +2,21 @@
 pragma solidity 0.8.28;
 
 // Custom errors for Validator.sol
-interface IValiadtorErrors {
+interface IValidatorErrors {
+    /**
+     * @dev Error indicates that deployer is trying to deploy a contract with `_epochDuration` = 0.
+     */
+    error Validator_EpochDurationCanNotBeZero();
 
+    /**
+     * @dev Error indicates that deployer is trying to deploy a contract with `_rewardDecayRate` > 100.
+     */
+    error Validator_RewardDecayRateCanNotBeGt100();
+
+    /**
+     * @dev Error indicates that token owner didn't approve contract for staking the license.
+     */
+    error Validator_ContractNotApprovedToStakeLicense();
 }
 
 // Custom errors for HelperConfig.s.sol
