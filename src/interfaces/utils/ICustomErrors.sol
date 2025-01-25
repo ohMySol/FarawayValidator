@@ -8,5 +8,9 @@ interface IValiadtorErrors {
 
 // Custom errors for HelperConfig.s.sol
 interface IHelperConfigErrors {
-
+    /**
+     * @dev Error indicates that a user is trying to deploy a contract to a network which 
+     * is not supported.
+     */
+    error HelperConfig_NonSupportedChain();
 }
