@@ -28,6 +28,21 @@ interface IValidatorErrors {
      * @dev Error indicates that address(0) is participating in rewards calculations.
      */
     error Validator_ValidatorCanNotBeAddressZero();
+
+    /**
+     * @dev Error indicates that user is calling epochEnd() function when the epoch didn't yet finish.
+     */
+    error Validator_EpochNotFinishedYet();
+
+    /**
+     * @dev Error indicates that validator already claimed his rewards in the current epoch.
+     */
+    error Validator_RewardAlreadyClaimedInThisEpoch();
+
+    /**
+     * @dev Error indicates that validator do not have any rewards to claim.
+     */
+    error Validator_NoRewardsToClaim();
 }
 
 // Custom errors for HelperConfig.s.sol
