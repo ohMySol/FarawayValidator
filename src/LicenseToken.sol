@@ -12,9 +12,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract LicenseToken is ERC721, Ownable {
     uint256 private _tokenId;
 
-    constructor(address _owner)
+    constructor()
         ERC721("License", "LCNS")
-        Ownable(_owner)
+        Ownable(msg.sender)
     {}
 
     /**

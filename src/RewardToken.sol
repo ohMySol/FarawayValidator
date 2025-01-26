@@ -11,9 +11,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * earn during the license staking.
  */
 contract RewardToken is ERC20, Ownable {
-    constructor(address _owner)
+    constructor()
         ERC20("Reward", "RWD")
-        Ownable(_owner)
+        Ownable(msg.sender)
     {}
 
     /**
