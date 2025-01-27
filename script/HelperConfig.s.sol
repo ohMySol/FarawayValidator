@@ -14,7 +14,12 @@ abstract contract Constants {
 
 contract HelperConfig is Script, Constants, IHelperConfigErrors {
     struct NetworkConfig {
-        address admin;
+        uint256 adminPk;
+        uint256 epochDuration;
+        uint256 rewardDecayRate;
+        uint256 initialRewards;
+        address licenseToken;
+        address rewardToken;
     }
 
     /**
@@ -44,6 +49,21 @@ contract HelperConfig is Script, Constants, IHelperConfigErrors {
      * @return `NetworkConfig` structure is returned.
      */
     function getLocalNetworkConfig() public returns (NetworkConfig memory) {
+        vm.startBroadcast();
+        LicenseToken lsToken = new LicenseToken();
+        RewardToken rwToken = new RewardToken();
+        vm.stopBroadcast();
+        
+        NetworkConfig memory localNetworkConfig = NetworkConfig({
+            adminPk: vm.envUint("LOCAL_ADMIN_PK"), // pk from anvil list
+            epochDuration: 10 minutes,             // 10 min duration of each epoch
+            rewardDecayRate: 10,                   // 10% decay rate in each new epoch
+            initialRewards: 1000,                  // initial rewards starting from 1000 in 1st epoch
+            licenseToken: address(lsToken),  
+            rewardToken: address(rwToken)
+        });
+
+        return localNetworkConfig;
     }
 
     /**
