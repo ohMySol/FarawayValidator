@@ -61,9 +61,9 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     constructor(
         uint256 _epochDuration, 
         uint256 _rewardDecayRate, 
-        uint256 _epochRewards,
-        IERC721 _licenseToken, 
-        IERC20 _rewardToken
+        uint256 _initialRewards,
+        address _licenseToken, 
+        address _rewardToken
     ) Ownable(msg.sender) {
         if (_epochDuration == 0) {
             revert Validator_EpochDurationCanNotBeZero();
@@ -75,10 +75,10 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         epochDuration = _epochDuration;
         rewardDecayRate = _rewardDecayRate;
         currentEpoch = 1;
-        currentEpochRewards = _epochRewards;
+        currentEpochRewards = _initialRewards;
         lastEpochTime = block.timestamp;
-        licenseToken = _licenseToken;
-        rewardToken = _rewardToken;
+        licenseToken = IERC721(_licenseToken);
+        rewardToken = IERC20(_rewardToken);
     }
 
     /**
