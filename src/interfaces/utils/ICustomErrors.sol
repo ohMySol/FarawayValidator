@@ -43,6 +43,11 @@ interface IValidatorErrors {
      * @dev Error indicates that validator do not have any rewards to claim.
      */
     error Validator_NoRewardsToClaim();
+
+    /**
+     * @dev Error indicates that not a `LicenseToken` contract is calling a `safeTransferFrom` function.
+     */
+    error Validator_CanOnlyBeCalledByLicenseTokenContract(address caller);
 }
 
 // Custom errors for HelperConfig.s.sol
