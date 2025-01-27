@@ -3,8 +3,10 @@ pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import {IValidatorErrors} from "./interfaces/utils/ICustomErrors.sol";
 
 /**
@@ -13,7 +15,7 @@ import {IValidatorErrors} from "./interfaces/utils/ICustomErrors.sol";
  * @notice This contract allows validators to stake their licenses(ERC-721) and earn tokens(ERC-20) in return
  * when a certain epoch is elapsed.
  */
-contract Validator is Pausable, IValidatorErrors {
+contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     using SafeERC20 for IERC20;
 
     event LicenseLocked(address indexed validator, uint256 tokenId);
@@ -33,7 +35,7 @@ contract Validator is Pausable, IValidatorErrors {
     mapping(address => uint256) public validatorRewards;                            // Amount of rewards earned by validator
     mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in teh system(avoid double adding valiadtor to the system if he wants to add more than 1 license)
 
-    address[] private validators;                                                   // Set of all addresses who have locked at least one license
+    address[] public validators;                                                   // Set of all addresses who have locked at least one license
 
     /**
      * @dev Modifier checks if function is called by token owner. If it is not a token owner
@@ -62,7 +64,7 @@ contract Validator is Pausable, IValidatorErrors {
         uint256 _epochRewards,
         IERC721 _licenseToken, 
         IERC20 _rewardToken
-    ) {
+    ) Ownable(msg.sender) {
         if (_epochDuration == 0) {
             revert Validator_EpochDurationCanNotBeZero();
         }
@@ -130,7 +132,7 @@ contract Validator is Pausable, IValidatorErrors {
         totalStakedLicensesPerEpoch[currentEpoch] -= 1;
 
 
-        licenseToken.safeTransferFrom(address(this), msg.sender, _tokenId);
+        licenseToken.transferFrom(address(this), msg.sender, _tokenId);
     }
     
     /**
@@ -155,8 +157,11 @@ contract Validator is Pausable, IValidatorErrors {
      * @dev Distributes rewards for the epoch that has ended by calculating each validator's share and reward
      * in that epoch. Then adds the corresponding amount to `validatorRewards` balance.
      * Resets for the next epoch and decreases the total reward for the next epoch.
+     * 
+     * Function restrictions:
+     *  - only contract owner can call this function
      */
-    function epochEnd() external {
+    function epochEnd() external onlyOwner {
         if (block.timestamp < lastEpochTime + epochDuration) {                               // ensuring that func. can only be called after `epochDuration` time has elapsed since the `lastEpochTime`
             revert Validator_EpochNotFinishedYet();
         }
@@ -217,11 +222,46 @@ contract Validator is Pausable, IValidatorErrors {
         reward = (currentEpochRewards * validatorShare) / 1e18;
     }
 
-    function pauseContract() external {
+    /**
+     * @dev Sets contract on pause in case of emergency(e.g. critical vulnerability was found).
+     * Functions with `whenNotPaused` modifier will be locked, until contract will be unlocked.
+     * 
+     * Function restrictions:
+     *  - only contract owner can call this function
+     */
+    function pauseContract() external onlyOwner {
         _pause();
     }
 
-    function unpauseContract() external {
+     /**
+     * @dev Removes contract from pause.
+     * Functions with `whenNotPaused` modifier will be unlocked for use.
+     * 
+     * Function restrictions:
+     *  - only contract owner can call this function
+     */
+    function unpauseContract() external onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @dev Function ensuring that this contract can properly receive ERC-721 tokens via
+     * `safeTransferFrom()` function. 
+     * 
+     * Function restrictions:
+     *  - can only be called by `LicenseToken` contract.
+     * 
+     * @return selector of the `onERC721Received()` function is returned.
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external view override returns (bytes4) {
+        if (msg.sender != address(licenseToken)) { // check that msg.sender is the `LicenseToken` contract we expecting.
+            revert Validator_CanOnlyBeCalledByLicenseTokenContract(msg.sender);
+        }
+        return this.onERC721Received.selector;
     }
 }
