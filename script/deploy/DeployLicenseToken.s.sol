@@ -11,10 +11,10 @@ contract DeployLicenseToken is Script {
 
     function deploy() public returns (LicenseToken) {
         vm.startBroadcast();
-        LicenseToken token = new LicenseToken(msg.sender);
+        LicenseToken token = new LicenseToken();
         vm.stopBroadcast();
 
-        console.log("Reward token contract deployed at: ", address(token));
+        console.log("License token contract deployed at: ", address(token));
 
         return token;
     }
