@@ -11,7 +11,7 @@ This project demonstrates a reward mechanism for stakers of ERC-721 license nfts
 git https://github.com/ohMySol/FarawayValidator
 ```
 2. Set up .env file:
-Take a look in `.env.example` file. It is listed all necessary environment variables that should be set up to run a project successfully.
+Take a look in `.env.example` file. It is listed all necessary environment variables that should be set up to run a project successfully. For local testing it is enough to set up just `LOCAL_ADMIN_PK`.
 3. Upload .env variables to shell:
 ```
 $ source .env
