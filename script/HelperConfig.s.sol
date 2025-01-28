@@ -49,7 +49,7 @@ contract HelperConfig is Script, Constants, IHelperConfigErrors {
      * @return `NetworkConfig` structure is returned.
      */
     function getLocalNetworkConfig() public returns (NetworkConfig memory) {
-        vm.startBroadcast();
+        vm.startBroadcast(vm.envUint("LOCAL_ADMIN_PK"));
         LicenseToken lsToken = new LicenseToken();
         RewardToken rwToken = new RewardToken();
         vm.stopBroadcast();
