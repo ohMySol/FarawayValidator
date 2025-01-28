@@ -13,8 +13,8 @@ import {IValidatorErrors} from "./interfaces/utils/ICustomErrors.sol";
  * @title Validator Contract
  * @author Anton
  * @notice This contract allows validators to stake their licenses(ERC-721) and earn tokens(ERC-20) in return
- * when a certain epoch is elapsed.
- */
+ * when a certain epoch has elapsed.
+*/
 contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     using SafeERC20 for IERC20;
 
@@ -34,7 +34,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     mapping(uint256 => uint256) public totalStakedLicensesPerEpoch;                 // How many licences were staked in total for the current epoch
     mapping(uint256 => uint256) public licensesLockTime;                            // Time when each license was locked(tokenId => stake time)
     mapping(address => uint256) public validatorRewards;                            // Amount of rewards earned by validator
-    mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in teh system(avoid double adding valiadtor to the system if he wants to add more than 1 license)
+    mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in the system(avoid double adding validator to the system if he wants to add more than 1 license)
     mapping(uint256 => address) public tokenOwner;
 
     constructor(
@@ -64,14 +64,14 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      * @dev Locks a license(ERC721) in the contract and registers the validator for rewards.
      * 
      * Function restrictions:
-     *  - can only be called when contract is not on pause.
+     *  - can only be called when the contract is not on pause.
      *  - only token owner can lock his license.
-     *  - token owner should approve contract to spend his token, before calling this function.
+     *  - token owner should approve a contract to spend his token, before calling this function.
      * 
      * Emits {LicenseLocked} event.
      * 
-     * @param _tokenId id of the token(ERC-721) which represents valiadtor license.
-     */
+     * @param _tokenId id of the token(ERC-721) which represents validator license.
+    */
     function lockLicense(uint256 _tokenId) external whenNotPaused {
         if (licenseToken.ownerOf(_tokenId) != msg.sender) {
             revert Validator_NotTokenOwner();
@@ -100,12 +100,12 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      * @dev Unlocks a license(ERC-721) and returns it back to the owner.
      * 
      * Function restrictions:
-     *  - can only be called when contract is not on pause.
-     *  - only token owner can unlock his license.
+     *  - can only be called when the contract is not on pause.
+     *  - only the token owner can unlock his license.
      *  - can only be called when 1 full epoch has passed since the lock time.
      * 
-     * @param _tokenId id of the token(ERC-721) which represents valiadtor license.
-     */
+     * @param _tokenId id of the token(ERC-721) which represents validator license.
+    */
     function unlockLicense(uint256 _tokenId) external whenNotPaused {
         if (tokenOwner[_tokenId] != msg.sender) {
             revert Validator_NotTokenOwner();
@@ -124,12 +124,12 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     }
     
     /**
-     * @dev Transfers earned tokens(ERC-20) to valiadtor. Rewards are proportional to the number 
-     * of staked licenses and number of elapsed epochs to valiadtor.
-     * 
+     * @dev Transfers earned tokens(ERC-20) to validator. Rewards are proportional to the number
+     * of staked licenses and number of elapsed epochs to validator.
+     *
      * Function restrictions:
-     *  - can only be called when contract is not on pause.
-     */
+     *  - can only be called when the contract is not on pause.
+    */
     function claimRewards() external whenNotPaused {
         uint256 rewards = validatorRewards[msg.sender];
         if (rewards == 0) {
@@ -148,7 +148,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      * 
      * Function restrictions:
      *  - only contract owner can call this function(in future it is possible to automate this)
-     */
+    */
     function epochEnd() external onlyOwner {
         if (currentEpochRewards == 0) {
             revert Validator_NoRewardsInPool();
@@ -159,7 +159,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
 
         uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[currentEpoch];        // get number of total locked licenses in the current epoch                            
 
-        if (totalStakedEpochLicenses > 0) {                       // check that we have both locked licenses and enough rewards in this epoch
+        if (totalStakedEpochLicenses > 0) {                                                  // check that we have both locked licenses and enough rewards in this epoch
             uint256 validatorsAmount = validators.length;                                    // caching the array length to save gas in the loop
             for (uint i = 0; i < validatorsAmount; i++) {
                 address validator = validators[i];
@@ -181,7 +181,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         }
         // Formula for calculating rewards for the future epoch: fixed rewards in current epoch * (100 - fixed decay rate) / 100.
         // Ex: Total rewards = 1000; decay rate = 10% in each epoch. This means that total rewards amount
-        // will be decresing in each epoch by 10%. Then 1000 * (100 - 10) / 100 = 900 total rewards for the next epoch
+        // will be decreasing in each epoch by 10%. Then 1000 * (100 - 10) / 100 = 900 total rewards for the next epoch
         currentEpochRewards = currentEpochRewards * (100 - rewardDecayRate) / 100;           // Decrease rewards for the next epoch by fixed `rewardDecayRate`
         lastEpochTime = block.timestamp;
         currentEpoch += 1;
@@ -193,27 +193,27 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      * 
      * Function restrictions:
      *  - only contract owner can call this function
-     */
+    */
     function pauseContract() external onlyOwner {
         _pause();
     }
 
-     /**
+    /**
      * @dev Removes contract from pause.
      * Functions with `whenNotPaused` modifier will be unlocked for use.
      * 
      * Function restrictions:
      *  - only contract owner can call this function
-     */
+    */
     function unpauseContract() external onlyOwner {
         _unpause();
     }
 
     /**
      * @dev Calculates rewards for `_validator` in the `currentEpoch`. Calculation happens 
-     * one time when epoch is finished. Results are calculated based on the number of validator 
-     *  `_stakedInEpoch` licenses and `_totalEpochLicenses` locked in current epoch from all validators.
-     * lisenses
+     * one time when the epoch is finished. Results are calculated based on the number of validator 
+     * `_stakedInEpoch` licenses and `_totalEpochLicenses` locked in the current epoch from all validators.
+     * licenses
      * 
      * Function restrictions:
      *  - `_validator` can not be address(0)
@@ -223,7 +223,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      * @param _totalEpochLicenses total number of locked licenses in the currentEpoch from all validators.
      * 
      * @return reward amount earned by user per `currentEpoch`.
-     */
+    */
     function _calculateRewards(
         address _validator, 
         uint256 _stakedInEpoch, 
@@ -233,8 +233,8 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             revert Validator_ValidatorCanNotBeAddressZero();
         }
         // Formula: (total locked validator licenses * 1e18) / total locked licenses. This will give us
-        // the share of validator from all locked licenses.
-        // Using 1e18 helps to prevent precision loss with division adn more easier fractional calculations.
+        // the share of the validator from all locked licenses.
+        // Using 1e18 helps to prevent precision loss with division and more easier fractional calculations.
         uint256 validatorShare = (_stakedInEpoch * 1e18) / _totalEpochLicenses;
         // Formula: (Total reward in current epoch * validator share in pool of locked licenses) / 1e18.
         reward = (currentEpochRewards * validatorShare) / 1e18;
@@ -243,7 +243,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     /**
      * @dev Returns the length of `validators` array.
      * @return uint256 length of the array. 
-     */
+    */
     function getValidatorsLength() public view returns (uint256) {
         return validators.length;
     }
@@ -256,14 +256,14 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      *  - can only be called by `LicenseToken` contract.
      * 
      * @return selector of the `onERC721Received()` function is returned.
-     */
+    */
     function onERC721Received(
         address operator,
         address from,
         uint256 tokenId,
         bytes calldata data
     ) external view override returns (bytes4) {
-        if (msg.sender != address(licenseToken)) { // check that msg.sender is the `LicenseToken` contract we expecting.
+        if (msg.sender != address(licenseToken)) {      // verify msg.sender is the `LicenseToken` contract.
             revert Validator_CanOnlyBeCalledByLicenseTokenContract(msg.sender);
         }
         return this.onERC721Received.selector;
