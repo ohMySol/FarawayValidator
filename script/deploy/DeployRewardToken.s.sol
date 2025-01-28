@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {RewardToken} from  "../../src/RewardToken.sol";
+import {HelperConfig} from "../HelperConfig.s.sol";
+
 
 contract DeployRewardToken is Script {
     function run() public {
@@ -10,7 +12,10 @@ contract DeployRewardToken is Script {
     }
 
     function deploy() public returns (RewardToken) {
-        vm.startBroadcast();
+        HelperConfig helperConfig = new HelperConfig();
+        HelperConfig.NetworkConfig memory config = helperConfig.getConfigByChainId(block.chainid, false);
+
+        vm.startBroadcast(config.adminPk);
         RewardToken token = new RewardToken();
         vm.stopBroadcast();
 

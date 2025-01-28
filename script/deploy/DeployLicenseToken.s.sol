@@ -3,6 +3,8 @@ pragma solidity 0.8.28;
 
 import {Script, console} from "forge-std/Script.sol";
 import {LicenseToken} from  "../../src/LicenseToken.sol";
+import {HelperConfig} from "../HelperConfig.s.sol";
+
 
 contract DeployLicenseToken is Script {
     function run() public {
@@ -10,7 +12,10 @@ contract DeployLicenseToken is Script {
     }
 
     function deploy() public returns (LicenseToken) {
-        vm.startBroadcast();
+        HelperConfig helperConfig = new HelperConfig();
+        HelperConfig.NetworkConfig memory config = helperConfig.getConfigByChainId(block.chainid, false);
+
+        vm.startBroadcast(config.adminPk);
         LicenseToken token = new LicenseToken();
         vm.stopBroadcast();
 

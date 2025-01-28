@@ -13,7 +13,7 @@ contract DeployValidator is Script {
 
     function deploy() public returns (Validator, HelperConfig.NetworkConfig memory) {
         HelperConfig helperConfig = new HelperConfig();
-        HelperConfig.NetworkConfig memory config = helperConfig.getConfigByChainId(block.chainid);
+        HelperConfig.NetworkConfig memory config = helperConfig.getConfigByChainId(block.chainid, true);
         
         vm.startBroadcast(config.adminPk);
         Validator validator = new Validator(
