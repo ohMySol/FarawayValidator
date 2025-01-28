@@ -48,6 +48,16 @@ interface IValidatorErrors {
      * @dev Error indicates that not a `LicenseToken` contract is calling a `safeTransferFrom` function.
      */
     error Validator_CanOnlyBeCalledByLicenseTokenContract(address caller);
+
+    /**
+     * @dev Error indicates that only token owner can lock/unlock his token(license) in/from the contract.
+     */
+    error Validator_NotTokenOwner();
+
+    /**
+     * @dev Error indicates that owner is trying to close an epoch and open a new epoch with 0 rewards pool. 
+     */
+    error Validator_NoRewardsInPool();
 }
 
 // Custom errors for HelperConfig.s.sol
