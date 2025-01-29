@@ -44,11 +44,16 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         address _licenseToken, 
         address _rewardToken
     ) Ownable(msg.sender) {
-        if (_epochDuration == 0) {
-            revert Validator_EpochDurationCanNotBeZero();
+        if (_epochDuration == 0 || _rewardDecayRate == 0 || _initialRewards == 0) {         // ensure critical values for future calculations set up correctly
+            revert Validator_ConstructorInitialValuesCanNotBeZero(
+                _epochDuration, _rewardDecayRate, _initialRewards
+            );
         }
-        if (_rewardDecayRate > 100) {
-            revert Validator_RewardDecayRateCanNotBeGt100();
+        if (_rewardDecayRate > 100) {                                                       // ensure the decay rate remains a valid % between 0% and 100%, because if it is more, then it would result in a negative multiplier in `epochEnd` calcualtion
+            revert Validator_ConstructorRewardDecayRateCanNotBeGt100();
+        }
+        if (_licenseToken == address(0) || _rewardToken == address(0)) {                    // ensure token contracts are set up correctly
+            revert Validator_ConstructorZeroAddressNotAllowed(_licenseToken, _rewardToken);
         }
 
         epochDuration = _epochDuration;
@@ -156,14 +161,15 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         if (block.timestamp < lastEpochTime + epochDuration) {                               // ensuring that func. can only be called after `epochDuration` time has elapsed since the `lastEpochTime`
             revert Validator_EpochNotFinishedYet();
         }
-
-        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[currentEpoch];        // get number of total locked licenses in the current epoch                            
+        
+        uint256 _currentEpoch = currentEpoch;                                                // caching currentEpoch value
+        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[_currentEpoch];        // get number of total locked licenses in the current epoch                            
 
         if (totalStakedEpochLicenses > 0) {                                                  // check that we have both locked licenses and enough rewards in this epoch
             uint256 validatorsAmount = validators.length;                                    // caching the array length to save gas in the loop
             for (uint i = 0; i < validatorsAmount; i++) {
                 address validator = validators[i];
-                uint256 stakedInEpoch = validatorStakesPerEpoch[validator][currentEpoch];    // get `validator` locked licenses in `currentEpoch`
+                uint256 stakedInEpoch = validatorStakesPerEpoch[validator][_currentEpoch];    // get `validator` locked licenses in `currentEpoch`
                 
                 if (stakedInEpoch == 0) {                                                    // if `validator` do not have staked licenses in the current epoch, then just skip this iteration
                     continue;
@@ -175,9 +181,9 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
                     totalStakedEpochLicenses
                 );
                 
-                validatorStakesPerEpoch[validator][currentEpoch + 1] = stakedInEpoch;         // move validator stakes from the current epoch -> to the next epoch
+                validatorStakesPerEpoch[validator][_currentEpoch + 1] = stakedInEpoch;         // move validator stakes from the current epoch -> to the next epoch
             }
-            totalStakedLicensesPerEpoch[currentEpoch + 1] = totalStakedEpochLicenses;         // move total staked tokens from the current epoch -> to the next epoch
+            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;         // move total staked tokens from the current epoch -> to the next epoch
         }
         // Formula for calculating rewards for the future epoch: fixed rewards in current epoch * (100 - fixed decay rate) / 100.
         // Ex: Total rewards = 1000; decay rate = 10% in each epoch. This means that total rewards amount
