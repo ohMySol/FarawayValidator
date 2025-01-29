@@ -155,7 +155,12 @@ contract ValidatorTest is Test {
 
     function test_Constructor_Reverts_When_EpochDuration_Is_Zero() public {
         vm.expectRevert(
-            IValidatorErrors.Validator_EpochDurationCanNotBeZero.selector
+            abi.encodeWithSelector(
+                IValidatorErrors.Validator_ConstructorInitialValuesCanNotBeZero.selector,
+                0,
+                config.rewardDecayRate,
+                config.initialRewards
+            )
         );
         new Validator(
             0,
@@ -168,13 +173,30 @@ contract ValidatorTest is Test {
 
     function test_Constructor_Reverts_When_RewardDecayRate_Greater_Than_100() public {
         vm.expectRevert(
-            IValidatorErrors.Validator_RewardDecayRateCanNotBeGt100.selector
+            IValidatorErrors.Validator_ConstructorRewardDecayRateCanNotBeGt100.selector
         );
         new Validator(
             config.epochDuration,
             101,
             config.initialRewards,
             config.licenseToken,
+            config.rewardToken
+        );
+    }
+
+    function test_Constructor_Reverts_When_Token_Address_Is_0() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IValidatorErrors.Validator_ConstructorZeroAddressNotAllowed.selector,
+                address(0),
+                config.rewardToken
+            )
+        );
+        new Validator(
+            config.epochDuration,
+            config.rewardDecayRate,
+            config.initialRewards,
+            address(0),
             config.rewardToken
         );
     }
