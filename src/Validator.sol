@@ -46,15 +46,15 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         address _licenseToken, 
         address _rewardToken
     ) Ownable(msg.sender) {
-        if (_epochDuration == 0 || _rewardDecayRate == 0 || _initialRewards == 0) {         // ensure critical values for future calculations set up correctly
+        if (_epochDuration == 0 || _rewardDecayRate == 0 || _initialRewards == 0) {         
             revert Validator_ConstructorInitialValuesCanNotBeZero(
                 _epochDuration, _rewardDecayRate, _initialRewards
             );
         }
-        if (_rewardDecayRate > 100) {                                                       // ensure the decay rate remains a valid % between 0% and 100%, because if it is more, then it would result in a negative multiplier in `epochEnd` calcualtion
+        if (_rewardDecayRate > 100) {                                                       
             revert Validator_ConstructorRewardDecayRateCanNotBeGt100();
         }
-        if (_licenseToken == address(0) || _rewardToken == address(0)) {                    // ensure token contracts are set up correctly
+        if (_licenseToken == address(0) || _rewardToken == address(0)) {                    
             revert Validator_ConstructorZeroAddressNotAllowed(_licenseToken, _rewardToken);
         }
 
@@ -92,7 +92,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         totalStakedLicensesPerEpoch[currentEpoch] += 1;
         tokenOwner[_tokenId] = msg.sender;
 
-        if (!isValidatorTracked[msg.sender]) {      // verify if validator already exists
+        if (!isValidatorTracked[msg.sender]) {     
             validators.push(msg.sender);            
             isValidatorTracked[msg.sender] = true;  
         }
@@ -270,7 +270,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         uint256 tokenId,
         bytes calldata data
     ) external view override returns (bytes4) {
-        if (msg.sender != address(licenseToken)) {      // verify msg.sender is the `LicenseToken` contract.
+        if (msg.sender != address(licenseToken)) {    
             revert Validator_CanOnlyBeCalledByLicenseTokenContract(msg.sender);
         }
         return this.onERC721Received.selector;
