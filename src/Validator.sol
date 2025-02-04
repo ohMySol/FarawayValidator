@@ -13,7 +13,7 @@ import {IValidatorErrors} from "./interfaces/utils/ICustomErrors.sol";
  * @title Validator Contract
  * @author Anton
  * @notice This contract allows validators to stake their licenses(ERC-721) and earn tokens(ERC-20) in return
- * when a certain epoch has elapsed.
+ * when a certain epoch(time period) has elapsed.
 */
 contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     using SafeERC20 for IERC20;
@@ -23,6 +23,8 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     IERC20 public immutable rewardToken;                                            // ERC-20 token used for rewards
     IERC721 public immutable licenseToken;                                          // ERC-721 token used for licenses
 
+
+    uint256 public constant PRECISION = 1e18;
     uint256 public immutable epochDuration;                                         // Duration of an epoch in minutes
     uint256 public immutable rewardDecayRate;                                       // Percentage of rewards to decrease per epoch (e.g., 10 means 10%)
     uint256 public currentEpoch;                                                    // Current epoch(means active epoch at the moment)
@@ -84,7 +86,6 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         if (licenseToken.getApproved(_tokenId) != address(this)) {
             revert Validator_ContractNotApprovedToStakeLicense();
         }
-
 
         licensesLockTime[_tokenId] =  block.timestamp;
         validatorStakesPerEpoch[msg.sender][currentEpoch] += 1;
@@ -163,32 +164,32 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         }
         
         uint256 _currentEpoch = currentEpoch;                                                // caching currentEpoch value
-        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[_currentEpoch];        // get number of total locked licenses in the current epoch                            
+        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[_currentEpoch];       // get number of total locked licenses in the current epoch                            
 
         if (totalStakedEpochLicenses > 0) {                                                  // check that we have both locked licenses and enough rewards in this epoch
             uint256 validatorsAmount = validators.length;                                    // caching the array length to save gas in the loop
             for (uint i = 0; i < validatorsAmount; i++) {
                 address validator = validators[i];
-                uint256 stakedInEpoch = validatorStakesPerEpoch[validator][_currentEpoch];    // get `validator` locked licenses in `currentEpoch`
+                uint256 stakedInEpoch = validatorStakesPerEpoch[validator][_currentEpoch];   // get `validator` locked licenses in `currentEpoch`
                 
                 if (stakedInEpoch == 0) {                                                    // if `validator` do not have staked licenses in the current epoch, then just skip this iteration
                     continue;
                 }
                 
-                validatorRewards[validator] += _calculateRewards(                             // calculate rewards for specific `validator` in this epoch 
+                validatorRewards[validator] += _calculateRewards(                            // calculate rewards for specific `validator` in this epoch 
                     validator, 
                     stakedInEpoch, 
                     totalStakedEpochLicenses
                 );
                 
-                validatorStakesPerEpoch[validator][_currentEpoch + 1] = stakedInEpoch;         // move validator stakes from the current epoch -> to the next epoch
+                validatorStakesPerEpoch[validator][_currentEpoch + 1] = stakedInEpoch;       // move validator stakes from the current epoch -> to the next epoch
             }
-            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;         // move total staked tokens from the current epoch -> to the next epoch
+            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;       // move total staked tokens from the current epoch -> to the next epoch
         }
         // Formula for calculating rewards for the future epoch: fixed rewards in current epoch * (100 - fixed decay rate) / 100.
         // Ex: Total rewards = 1000; decay rate = 10% in each epoch. This means that total rewards amount
         // will be decreasing in each epoch by 10%. Then 1000 * (100 - 10) / 100 = 900 total rewards for the next epoch
-        currentEpochRewards = currentEpochRewards * (100 - rewardDecayRate) / 100;           // Decrease rewards for the next epoch by fixed `rewardDecayRate`
+        currentEpochRewards = (currentEpochRewards * (100 - rewardDecayRate)) / 100;           // Decrease rewards for the next epoch by fixed `rewardDecayRate`
         lastEpochTime = block.timestamp;
         currentEpoch += 1;
     }
@@ -241,9 +242,9 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         // Formula: (total locked validator licenses * 1e18) / total locked licenses. This will give us
         // the share of the validator from all locked licenses.
         // Using 1e18 helps to prevent precision loss with division and more easier fractional calculations.
-        uint256 validatorShare = (_stakedInEpoch * 1e18) / _totalEpochLicenses;
+        uint256 validatorShare = (_stakedInEpoch * PRECISION) / _totalEpochLicenses;
         // Formula: (Total reward in current epoch * validator share in pool of locked licenses) / 1e18.
-        reward = (currentEpochRewards * validatorShare) / 1e18;
+        reward = (currentEpochRewards * validatorShare) / PRECISION;
     }
 
     /**
