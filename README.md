@@ -79,3 +79,7 @@ But in reality:
    
 Once the deployment completes, even if the terminal shows that the make command is finished, the Anvil process is still running and **you can interact with the deployed contract**.\
 To confirm that Anvil is running in the background, you can check with the following: `lsof -i :8545`.\
+
+## Problems to solve
+1. Remove validator from `validators` array, if he/she withdraw all license tokens.
+2. Improve `epochEnd()` function. Atm I am iterating over the whole array which can lead to out of gas error or DoS attack. For this I can use batch operations to calculate and distribute rewards for batch of validators.
