@@ -189,7 +189,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         // Formula for calculating rewards for the future epoch: fixed rewards in current epoch * (100 - fixed decay rate) / 100.
         // Ex: Total rewards = 1000; decay rate = 10% in each epoch. This means that total rewards amount
         // will be decreasing in each epoch by 10%. Then 1000 * (100 - 10) / 100 = 900 total rewards for the next epoch
-        currentEpochRewards = (currentEpochRewards * (100 - rewardDecayRate)) / 100;           // Decrease rewards for the next epoch by fixed `rewardDecayRate`
+        currentEpochRewards = (currentEpochRewards * (100 - rewardDecayRate) * PRECISION) / (100 * PRECISION);      // Decrease rewards for the next epoch by fixed `rewardDecayRate` | using 1e18(PRECISION) helps to prevent precision loss with division
         lastEpochTime = block.timestamp;
         currentEpoch += 1;
     }

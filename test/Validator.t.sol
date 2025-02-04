@@ -533,7 +533,7 @@ contract ValidatorTest is Test {
 
         // 4. Close epoch, distribute rewards to validators, and decrease total rewards pool for future epoch.
         vm.startPrank(admin);
-        validator.epochEnd();                              // contract owner calling this function which closes current epoch, distributes rewards and calculate rewards pool for next epoch 2
+        validator.epochEnd();                              // contract owner closing current epoch, distributing rewards and calculating rewards pool for next epoch 2
         
         /////////////////////////////////// 2nd epoch ////////////////////////////////////////
         
