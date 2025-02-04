@@ -126,7 +126,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         totalStakedLicensesPerEpoch[currentEpoch] -= 1;
 
 
-        licenseToken.transferFrom(address(this), msg.sender, _tokenId);
+        licenseToken.safeTransferFrom(address(this), msg.sender, _tokenId);
     }
     
     /**
