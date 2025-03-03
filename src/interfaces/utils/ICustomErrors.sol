@@ -14,6 +14,11 @@ interface IValidatorErrors {
     );
 
     /**
+     * @dev Error indicates that validator is trying to claim rewards for an epoch that has already been claimed.
+     */
+    error Validator_EpochAlreadyClaimed();
+
+    /**
      * @dev Error indicates that deployer is trying to deploy a contract with `_rewardDecayRate` argument > 100.
      */
     error Validator_ConstructorRewardDecayRateCanNotBeGt100();
