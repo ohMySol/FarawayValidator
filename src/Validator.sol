@@ -38,6 +38,8 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     mapping(address => uint256) public validatorRewards;                            // Amount of rewards earned by validator
     mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in the system(avoid double adding validator to the system if he wants to add more than 1 license)
     mapping(uint256 => address) public tokenOwner;
+    mapping(uint256 => uint256) public rewardPerLicenseAccumulated;                 // Accumulated rewards per license at each epoch
+    mapping(address => uint256) public lastClaimedEpoch;                            // Last epoch claimed by validator
 
     constructor(
         uint256 _epochDuration, 
@@ -85,9 +87,9 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         }
         if (licenseToken.getApproved(_tokenId) != address(this)) {
             revert Validator_ContractNotApprovedToStakeLicense();
-        }
+        } 
 
-        licensesLockTime[_tokenId] =  block.timestamp;
+        licensesLockTime[_tokenId] = block.timestamp;
         validatorStakesPerEpoch[msg.sender][currentEpoch] += 1;
         totalStakedLicensesPerEpoch[currentEpoch] += 1;
         tokenOwner[_tokenId] = msg.sender;
@@ -95,6 +97,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         if (!isValidatorTracked[msg.sender]) {     
             validators.push(msg.sender);            
             isValidatorTracked[msg.sender] = true;  
+           //lastClaimedEpoch[msg.sender] = currentEpoch - 1; // Initialize to current epoch - 1
         }
 
         licenseToken.safeTransferFrom(msg.sender, address(this), _tokenId);
@@ -130,66 +133,81 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     }
     
     /**
-     * @dev Transfers earned tokens(ERC-20) to validator. Rewards are proportional to the number
-     * of staked licenses and number of elapsed epochs to validator.
+     * @dev Transfers earned tokens(ERC-20) to validator. Rewards are calculated on-demand
+     * based on the validator's staked licenses and epochs passed since last claim.
      *
      * Function restrictions:
      *  - can only be called when the contract is not on pause.
     */
     function claimRewards() external whenNotPaused {
-        uint256 rewards = validatorRewards[msg.sender];
+        uint256 lastClaimed = lastClaimedEpoch[msg.sender];
+        if (lastClaimed == 0) {
+            lastClaimed = currentEpoch - 1; // First time claiming, use previous epoch
+        }
+        if (lastClaimed >= currentEpoch) {
+            revert Validator_EpochAlreadyClaimed();
+        }
+        
+        uint256 rewards = _calculateUserRewards(msg.sender, lastClaimed);
         if (rewards == 0) {
             revert Validator_NoRewardsToClaim();
         }
         
-        validatorRewards[msg.sender] = 0;
-
+        lastClaimedEpoch[msg.sender] = currentEpoch;
+        
         rewardToken.safeTransfer(msg.sender, rewards);
     }
 
     /**
-     * @dev Distributes rewards for the epoch that has ended by calculating each validator's share and reward
-     * in that epoch. Then adds the corresponding amount to `validatorRewards` balance.
-     * Resets for the next epoch and decreases the total reward for the next epoch.
+     * @dev Calculates pending rewards for a validator since their last claim
+     * 
+     * @param _validator Address of the validator
+     * @param _lastClaimedEpoch Last epoch this validator claimed rewards for
+     * @return total rewards accumulated since last claim
+     */
+    function _calculateUserRewards(address _validator, uint256 _lastClaimedEpoch) internal view returns (uint256) {
+        uint256 totalRewards = 0;
+        
+        for (uint256 epoch = _lastClaimedEpoch + 1; epoch < currentEpoch; epoch++) {
+            uint256 stakedInEpoch = validatorStakesPerEpoch[_validator][epoch];
+            if (stakedInEpoch > 0) {
+                totalRewards += stakedInEpoch * (rewardPerLicenseAccumulated[epoch] - rewardPerLicenseAccumulated[_lastClaimedEpoch]);
+            }
+        }
+        
+        return totalRewards;
+    }
+
+    /**
+     * @dev End the current epoch and update reward state for the next epoch.
+     * Instead of calculating rewards for each validator immediately, we update
+     * the accumulated rewards per license that will be used for on-demand calculations.
      * 
      * Function restrictions:
-     *  - only contract owner can call this function(in future it is possible to automate this)
+     *  - only contract owner can call this function
     */
     function epochEnd() external onlyOwner {
         if (currentEpochRewards == 0) {
             revert Validator_NoRewardsInPool();
         }
-        if (block.timestamp < lastEpochTime + epochDuration) {                               // ensuring that func. can only be called after `epochDuration` time has elapsed since the `lastEpochTime`
+        if (block.timestamp < lastEpochTime + epochDuration) {
             revert Validator_EpochNotFinishedYet();
         }
         
-        uint256 _currentEpoch = currentEpoch;                                                // caching currentEpoch value
-        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[_currentEpoch];       // get number of total locked licenses in the current epoch                            
+        uint256 _currentEpoch = currentEpoch;
+        uint256 totalStakedEpochLicenses = totalStakedLicensesPerEpoch[_currentEpoch];
 
-        if (totalStakedEpochLicenses > 0) {                                                  // check that we have both locked licenses and enough rewards in this epoch
-            uint256 validatorsAmount = validators.length;                                    // caching the array length to save gas in the loop
-            for (uint i = 0; i < validatorsAmount; i++) {
-                address validator = validators[i];
-                uint256 stakedInEpoch = validatorStakesPerEpoch[validator][_currentEpoch];   // get `validator` locked licenses in `currentEpoch`
-                
-                if (stakedInEpoch == 0) {                                                    // if `validator` do not have staked licenses in the current epoch, then just skip this iteration
-                    continue;
-                }
-                
-                validatorRewards[validator] += _calculateRewards(                            // calculate rewards for specific `validator` in this epoch 
-                    validator, 
-                    stakedInEpoch, 
-                    totalStakedEpochLicenses
-                );
-                
-                validatorStakesPerEpoch[validator][_currentEpoch + 1] = stakedInEpoch;       // move validator stakes from the current epoch -> to the next epoch
-            }
-            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;       // move total staked tokens from the current epoch -> to the next epoch
+        // Update accumulated rewards per license
+        if (totalStakedEpochLicenses > 0) {
+            uint256 rewardPerLicense = (currentEpochRewards * PRECISION) / totalStakedEpochLicenses;
+            rewardPerLicenseAccumulated[_currentEpoch] = rewardPerLicenseAccumulated[_currentEpoch - 1] + rewardPerLicense;
+            
+            // Move stakes to next epoch
+            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;        
         }
-        // Formula for calculating rewards for the future epoch: fixed rewards in current epoch * (100 - fixed decay rate) / 100.
-        // Ex: Total rewards = 1000; decay rate = 10% in each epoch. This means that total rewards amount
-        // will be decreasing in each epoch by 10%. Then 1000 * (100 - 10) / 100 = 900 total rewards for the next epoch
-        currentEpochRewards = (currentEpochRewards * (100 - rewardDecayRate) * PRECISION) / (100 * PRECISION);      // Decrease rewards for the next epoch by fixed `rewardDecayRate` | using 1e18(PRECISION) helps to prevent precision loss with division
+        
+        // Decrease rewards for the next epoch
+        currentEpochRewards = (currentEpochRewards * (100 - rewardDecayRate) * PRECISION) / (100 * PRECISION);
         lastEpochTime = block.timestamp;
         currentEpoch += 1;
     }
@@ -214,37 +232,6 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     */
     function unpauseContract() external onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @dev Calculates rewards for `_validator` in the `currentEpoch`. Calculation happens 
-     * one time when the epoch is finished. Results are calculated based on the number of validator 
-     * `_stakedInEpoch` licenses and `_totalEpochLicenses` locked in the current epoch from all validators.
-     * licenses
-     * 
-     * Function restrictions:
-     *  - `_validator` can not be address(0)
-     * 
-     * @param _validator user who staked his/ger licenses.
-     * @param _stakedInEpoch number of locked `_vaidator` licenses in the currentEpoch.
-     * @param _totalEpochLicenses total number of locked licenses in the currentEpoch from all validators.
-     * 
-     * @return reward amount earned by user per `currentEpoch`.
-    */
-    function _calculateRewards(
-        address _validator, 
-        uint256 _stakedInEpoch, 
-        uint256 _totalEpochLicenses
-    ) internal view returns(uint256 reward) {
-        if (_validator == address(0)) {
-            revert Validator_ValidatorCanNotBeAddressZero();
-        }
-        // Formula: (total locked validator licenses * 1e18) / total locked licenses. This will give us
-        // the share of the validator from all locked licenses.
-        // Using 1e18 helps to prevent precision loss with division and more easier fractional calculations.
-        uint256 validatorShare = (_stakedInEpoch * PRECISION) / _totalEpochLicenses;
-        // Formula: (Total reward in current epoch * validator share in pool of locked licenses) / 1e18.
-        reward = (currentEpochRewards * validatorShare) / PRECISION;
     }
 
     /**
@@ -274,5 +261,20 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             revert Validator_CanOnlyBeCalledByLicenseTokenContract(msg.sender);
         }
         return this.onERC721Received.selector;
+    }
+
+    /**
+     * @dev Public function to view user rewards.
+     * 
+     * @param _validator Address of the validator
+     * @return  amount of rewards for user.
+     */
+    function getUserRewards(address _validator) external view returns (uint256) {
+        uint256 lastClaimed = lastClaimedEpoch[_validator];
+        if (lastClaimed == 0 || lastClaimed >= currentEpoch) {
+            return 0;
+        }
+        
+        return _calculateUserRewards(_validator, lastClaimed);
     }
 }
