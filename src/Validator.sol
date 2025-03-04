@@ -23,24 +23,25 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     IERC20 public immutable rewardToken;                                            // ERC-20 token used for rewards
     IERC721 public immutable licenseToken;                                          // ERC-721 token used for licenses
 
-
     uint256 public constant PRECISION = 1e18;
     uint256 public immutable epochDuration;                                         // Duration of an epoch in minutes
     uint256 public immutable rewardDecayRate;                                       // Percentage of rewards to decrease per epoch (e.g., 10 means 10%)
     uint256 public currentEpoch;                                                    // Current epoch(means active epoch at the moment)
     uint256 public currentEpochRewards;                                             // Total rewards in current epoch(current - means active epoch)
     uint256 public lastEpochTime;                                                   // Timestamp when the last epoch ended
-    address[] public validators;                                                    // Set of all addresses who have locked at least one license
 
-    mapping(address => mapping(uint256 => uint256)) public validatorStakesPerEpoch; // How many licenses each validator staked per epoch
     mapping(uint256 => uint256) public totalStakedLicensesPerEpoch;                 // How many licences were staked in total for the current epoch
     mapping(uint256 => uint256) public licensesLockTime;                            // Time when each license was locked(tokenId => stake time)
     mapping(address => uint256) public validatorRewards;                            // Amount of rewards earned by validator
     mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in the system(avoid double adding validator to the system if he wants to add more than 1 license)
     mapping(uint256 => address) public tokenOwner;
-    mapping(uint256 => uint256) public rewardPerLicenseAccumulated;                 // Accumulated rewards per license at each epoch
-    mapping(address => uint256) public lastClaimedEpoch;                            // Last epoch claimed by validator
 
+    mapping(uint256 => uint256) public rewardPerLicenseAccumulated;                 // Accumulated rewards per license at each epoch
+    mapping(address => uint256) public lastClaimedEpoch;                            // Track when a validator's claim last changed
+
+    mapping(address => uint256) public lastStakeUpdateEpoch;                        // Track when a validator's stake last changed
+    mapping(address => uint256) public stakesAtLastUpdate;                          // Track the stake amount at the last update     
+    
     constructor(
         uint256 _epochDuration, 
         uint256 _rewardDecayRate, 
@@ -48,18 +49,6 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         address _licenseToken, 
         address _rewardToken
     ) Ownable(msg.sender) {
-        if (_epochDuration == 0 || _rewardDecayRate == 0 || _initialRewards == 0) {         
-            revert Validator_ConstructorInitialValuesCanNotBeZero(
-                _epochDuration, _rewardDecayRate, _initialRewards
-            );
-        }
-        if (_rewardDecayRate > 100) {                                                       
-            revert Validator_ConstructorRewardDecayRateCanNotBeGt100();
-        }
-        if (_licenseToken == address(0) || _rewardToken == address(0)) {                    
-            revert Validator_ConstructorZeroAddressNotAllowed(_licenseToken, _rewardToken);
-        }
-
         epochDuration = _epochDuration;
         rewardDecayRate = _rewardDecayRate;
         currentEpoch = 1;
@@ -88,17 +77,14 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         if (licenseToken.getApproved(_tokenId) != address(this)) {
             revert Validator_ContractNotApprovedToStakeLicense();
         } 
-
+        
+        uint256 _currentEpoch = currentEpoch;
+        stakesAtLastUpdate[msg.sender] += 1;
+        lastStakeUpdateEpoch[msg.sender] = _currentEpoch;
         licensesLockTime[_tokenId] = block.timestamp;
-        validatorStakesPerEpoch[msg.sender][currentEpoch] += 1;
-        totalStakedLicensesPerEpoch[currentEpoch] += 1;
+        totalStakedLicensesPerEpoch[_currentEpoch] += 1;
         tokenOwner[_tokenId] = msg.sender;
-
-        if (!isValidatorTracked[msg.sender]) {     
-            validators.push(msg.sender);            
-            isValidatorTracked[msg.sender] = true;  
-           //lastClaimedEpoch[msg.sender] = currentEpoch - 1; // Initialize to current epoch - 1
-        }
+        lastClaimedEpoch[msg.sender] = currentEpoch - 1; // Initialize for first-time validators
 
         licenseToken.safeTransferFrom(msg.sender, address(this), _tokenId);
 
@@ -123,11 +109,12 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             revert Validator_EpochDidNotPassedYet();
         }
 
+        require(stakesAtLastUpdate[msg.sender] > 0, "No licenses to unlock");
+        stakesAtLastUpdate[msg.sender] -= 1;
+        lastStakeUpdateEpoch[msg.sender] = currentEpoch;
         delete licensesLockTime[_tokenId];
         delete tokenOwner[_tokenId];
-        validatorStakesPerEpoch[msg.sender][currentEpoch] -= 1;
         totalStakedLicensesPerEpoch[currentEpoch] -= 1;
-
 
         licenseToken.safeTransferFrom(address(this), msg.sender, _tokenId);
     }
@@ -141,11 +128,12 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     */
     function claimRewards() external whenNotPaused {
         uint256 lastClaimed = lastClaimedEpoch[msg.sender];
-        if (lastClaimed == 0) {
-            lastClaimed = currentEpoch - 1; // First time claiming, use previous epoch
-        }
+    
         if (lastClaimed >= currentEpoch) {
             revert Validator_EpochAlreadyClaimed();
+        }
+        if (lastClaimed == 0) {
+            lastClaimed = currentEpoch - 1; // First time claiming
         }
         
         uint256 rewards = _calculateUserRewards(msg.sender, lastClaimed);
@@ -153,25 +141,35 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             revert Validator_NoRewardsToClaim();
         }
         
+        // Update state before external call to prevent reentrancy
         lastClaimedEpoch[msg.sender] = currentEpoch;
         
         rewardToken.safeTransfer(msg.sender, rewards);
     }
 
     /**
-     * @dev Calculates pending rewards for a validator since their last claim
+     * @dev Calculates rewards for a validator since their last claim
      * 
      * @param _validator Address of the validator
      * @param _lastClaimedEpoch Last epoch this validator claimed rewards for
      * @return total rewards accumulated since last claim
      */
     function _calculateUserRewards(address _validator, uint256 _lastClaimedEpoch) internal view returns (uint256) {
-        uint256 totalRewards = 0;
+        if (_validator == address(0)) {
+            return 0;
+        }
         
-        for (uint256 epoch = _lastClaimedEpoch + 1; epoch < currentEpoch; epoch++) {
-            uint256 stakedInEpoch = validatorStakesPerEpoch[_validator][epoch];
-            if (stakedInEpoch > 0) {
-                totalRewards += stakedInEpoch * (rewardPerLicenseAccumulated[epoch] - rewardPerLicenseAccumulated[_lastClaimedEpoch]);
+        uint256 totalRewards = 0;
+        uint256 _currentEpoch = currentEpoch;
+
+        for (uint256 epoch = _lastClaimedEpoch + 1; epoch < _currentEpoch; epoch++) {
+            uint256 validatorStake = getValidatorStakeAtEpoch(_validator, epoch);
+            if (validatorStake > 0) {
+                // Calculate the reward for this specific epoch using the difference between adjacent epochs
+                uint256 epochReward = validatorStake * (
+                    rewardPerLicenseAccumulated[epoch] - rewardPerLicenseAccumulated[epoch - 1] // This difference represents the rewards earned per license during the current epoch.
+                );
+                totalRewards += epochReward;
             }
         }
         
@@ -203,7 +201,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             rewardPerLicenseAccumulated[_currentEpoch] = rewardPerLicenseAccumulated[_currentEpoch - 1] + rewardPerLicense;
             
             // Move stakes to next epoch
-            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;        
+            totalStakedLicensesPerEpoch[_currentEpoch + 1] = totalStakedEpochLicenses;
         }
         
         // Decrease rewards for the next epoch
@@ -241,6 +239,23 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     function getValidatorsLength() public view returns (uint256) {
         return validators.length;
     }
+    
+    /**
+     * @dev Returns the stake amount for a validator at a specific epoch.
+     * 
+     * @param _validator Address of the validator
+     * @param _epoch Epoch number
+     * @return uint256 Stake amount at the specified epoch
+    */
+    function getValidatorStakeAtEpoch(address _validator, uint256 _epoch) public view returns (uint256) {
+        uint256 lastUpdate = lastStakeUpdateEpoch[_validator];
+
+        // If the stake was updated after the requested epoch, return 0
+        if (lastUpdate > _epoch) return 0;
+    
+        // Otherwise, return the stake at the last update
+        return stakesAtLastUpdate[_validator];
+    }
 
     /**
      * @dev Function ensuring that this contract can properly receive ERC-721 tokens via
@@ -271,7 +286,11 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
      */
     function getUserRewards(address _validator) external view returns (uint256) {
         uint256 lastClaimed = lastClaimedEpoch[_validator];
-        if (lastClaimed == 0 || lastClaimed >= currentEpoch) {
+        if (lastClaimed == 0) {
+            lastClaimed = currentEpoch - 1; // First time viewing rewards
+        }
+        
+        if (lastClaimed >= currentEpoch) {
             return 0;
         }
         
