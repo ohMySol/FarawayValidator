@@ -83,7 +83,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         licensesLockTime[_tokenId] = block.timestamp;
         totalStakedLicensesPerEpoch[_currentEpoch] += 1;
         tokenOwner[_tokenId] = msg.sender;
-        lastClaimedEpoch[msg.sender] = _currentEpoch - 1; // Initialize for first-time validators
+        //lastClaimedEpoch[msg.sender] = _currentEpoch - 1; // Initialize for first-time validators
 
         licenseToken.safeTransferFrom(msg.sender, address(this), _tokenId);
 
@@ -158,10 +158,9 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
             return 0;
         }
         
-        uint256 totalRewards = 0;
-        uint256 _currentEpoch = currentEpoch;
+        uint256 totalRewards;
 
-        for (uint256 epoch = _lastClaimedEpoch + 1; epoch < _currentEpoch; epoch++) {
+        for (uint256 epoch = _lastClaimedEpoch + 1; epoch < currentEpoch; epoch++) {
             uint256 validatorStake = getValidatorStakeAtEpoch(_validator, epoch);
             if (validatorStake > 0) {
                 // Calculate the reward for this specific epoch using the difference between adjacent epochs
@@ -229,14 +228,6 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     */
     function unpauseContract() external onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @dev Returns the length of `validators` array.
-     * @return uint256 length of the array. 
-    */
-    function getValidatorsLength() public view returns (uint256) {
-        return validators.length;
     }
     
     /**
