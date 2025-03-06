@@ -33,7 +33,6 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
     mapping(uint256 => uint256) public totalStakedLicensesPerEpoch;                 // How many licences were staked in total for the current epoch
     mapping(uint256 => uint256) public licensesLockTime;                            // Time when each license was locked(tokenId => stake time)
     mapping(address => uint256) public validatorRewards;                            // Amount of rewards earned by validator
-    mapping(address => bool) public isValidatorTracked;                             // Mapping to check if validator is already in the system(avoid double adding validator to the system if he wants to add more than 1 license)
     mapping(uint256 => address) public tokenOwner;
 
     mapping(uint256 => uint256) public rewardPerLicenseAccumulated;                 // Accumulated rewards per license at each epoch
@@ -135,7 +134,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         if (lastClaimed == 0) {
             lastClaimed = currentEpoch - 1; // First time claiming
         }
-        
+
         uint256 rewards = _calculateUserRewards(msg.sender, lastClaimed);
         if (rewards == 0) {
             revert Validator_NoRewardsToClaim();
