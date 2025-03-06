@@ -83,7 +83,7 @@ contract Validator is Pausable, Ownable, IERC721Receiver,  IValidatorErrors {
         licensesLockTime[_tokenId] = block.timestamp;
         totalStakedLicensesPerEpoch[_currentEpoch] += 1;
         tokenOwner[_tokenId] = msg.sender;
-        lastClaimedEpoch[msg.sender] = currentEpoch - 1; // Initialize for first-time validators
+        lastClaimedEpoch[msg.sender] = _currentEpoch - 1; // Initialize for first-time validators
 
         licenseToken.safeTransferFrom(msg.sender, address(this), _tokenId);
 
